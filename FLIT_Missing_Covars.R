@@ -118,6 +118,9 @@ vars_bg <- c(
   "Familiar.Fin.Concept"
 )
 
+data_us_small <- data_us_small_numeric |>
+  mutate(across(c(`Books.Home`,`Home.Cars`,`Home.Computer`,Siblings,`Immigrant`,`Grade.Repeat`), as.factor))
+
 # Attempt 1: impute with all PVs in imputation model, then combine each of those imputed datasets with each PV
 # So total number of datasets that get fit & pooled is 10*n_imp
 # But I think this may be wrong, because I'm not convinced it's valid to reuse the same imputed values for each PV.
@@ -167,11 +170,6 @@ fit_tall_us <- lapply(tall_us, function(x){
 
 model <- pool(fit_tall_us)
 summary(model)
-
-svy <- svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = us_mids$data)
-fit <- with(us_mids, svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
-                                   Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, design=svy))
-model <- pool(fit)
 
 # Attempt 2: Following Huang & Keller (2025), create a separate set of imputations for each PV, then pool everything
 # Also results in 10*n_imp models to pool, but each PV gets its own set of imputed values
