@@ -99,13 +99,7 @@ dataQQQ <- dataQQQ %>%
             ends_with("FLIT")), na.rm = TRUE)) 
 names(dataQQQ); dim(dataQQQ)
 
-data_us_small_numeric <- dataQQQ |>
-  filter(Country=="USA") |>
-  select(Gender, Own.Room, Books.Home, Home.Cars, Home.Computer, Siblings, 
-         Immigrant, Father.Ed, 
-         Familiar.Fin.Concept, Grade.Repeat, Home.Devices, starts_with("PV") & !ends_with("Ave"), 
-         starts_with("W_FSTU"), "SchoolID","CNTSTUID") 
-
+######## Utility functions ############
 vars_bg <- c(
   "Books.Home",
   "Home.Cars", 
@@ -117,9 +111,44 @@ vars_bg <- c(
   "Home.Devices",
   "Familiar.Fin.Concept"
 )
+convert_bg_vars_factor <- function(x) {
+  x |>
+    mutate(`Books.Home` = factor(`Books.Home`, 
+                                 labels=c("None", "1-10", "11-25", "26-100", "101-200", "201-500", "More than 500")),
+           Gender = factor(Gender, labels=c("Female", "Male")),
+           # In original var, 1 = Yes, 2 = No, so revalue to 0 = No, 1 = Yes
+           `Own.Room` = factor(2-`Own.Room`, labels=c("No", "Yes")),
+           `Home.Cars` = factor(`Home.Cars`, labels=c("None", "One", "Two", "3 or more")),
+           `Home.Computer` = factor(2-`Home.Computer`, labels=c("No", "Yes")),
+           Siblings = factor(Siblings, labels=c("None", "One", "Two", "3 or more")),
+           Immigrant = factor(Immigrant, labels=c("Non-immigrant", "Second-gen", "First-gen")),
+           `Grade.Repeat` = factor(`Grade.Repeat`, levels=c(0,1), labels=c("No", "Yes")),
+           `Home.Devices` = factor(`Home.Devices`, 
+                                   labels=c("None", "One", "Two", "Three", "Four", "Five", "6-10", "More than 10"))
+    )
+}
+
+# Source - https://stackoverflow.com/a
+# Posted by flodel, modified by community. See post 'Timeline' for change history
+# Retrieved 2025-11-28, License - CC BY-SA 3.0
+resave <- function(..., list = character(), file) {
+  previous  <- load(file)
+  var.names <- c(list, as.character(substitute(list(...)))[-1L])
+  for (var in var.names) assign(var, get(var, envir = parent.frame()))
+  save(list = unique(c(previous, var.names)), file = file)
+}
+
+###############
+
+data_us_small_numeric <- dataQQQ |>
+  filter(Country=="USA") |>
+  select(Gender, Own.Room, Books.Home, Home.Cars, Home.Computer, Siblings, 
+         Immigrant, Father.Ed, 
+         Familiar.Fin.Concept, Grade.Repeat, Home.Devices, starts_with("PV") & !ends_with("Ave"), 
+         starts_with("W_FSTU"), "SchoolID","CNTSTUID") 
 
 data_us_small <- data_us_small_numeric |>
-  mutate(across(c(`Books.Home`,`Home.Cars`,`Home.Computer`,Siblings,`Immigrant`,`Grade.Repeat`), as.factor))
+  convert_bg_vars_factor()
 
 # Attempt 1: impute with all PVs in imputation model, then combine each of those imputed datasets with each PV
 # So total number of datasets that get fit & pooled is 10*n_imp
@@ -133,8 +162,8 @@ data_us_small <- data_us_small_numeric |>
 # https://stefvanbuuren.name/fimd/sec-categorical.html
 # Need to run with more iterations and more imputations when doing this for real. But I'm just trying to get things
 # working right now
-n_imp = 10
-weighted_pmm <- mice(data_us_small_numeric |> select(-SchoolID, -CNTSTUID, -starts_with("W_FSTURWT")), 
+n_imp = 5
+weighted_pmm <- mice(data_us_small_numeric |> select(-SchoolID, -CNTSTUID), 
                      maxit=20, method="weighted.pmm", m=n_imp,
           imputationWeights = data_us_small_numeric$W_FSTUWT)
 plot(weighted_pmm)
@@ -143,9 +172,6 @@ densityplot(weighted_pmm)
 # Siblings is not good either, but I'm not sure how much can be done about that because a lot of the
 # people missing it are also missing all or most of the other questionnaire variables, so the only information
 # we have about them are their plausible values
-tall_us <- complete(weighted_pmm, action="stacked") |>
-  pivot_longer(PV1FLIT:PV10FLIT, values_to="plausible_FLIT") |>
-  mutate(imp = unlist(lapply(1:(10*n_imp), function(x)rep(x, nrow(data_us_small_numeric)))))
 
 # I tried running it with the default imputation as well (so logreg for binary/polyreg for multi-category)
 # But it was a lot slower, and I'm not sure it was better?
@@ -153,66 +179,197 @@ default_imp <- mice(data_us_small |> select(-SchoolID, -CNTSTUID), maxit=20)
 plot(default_imp)
 densityplot(default_imp)
 
-# Need to convert things back to factors
-for (v in vars_bg) {
-  if(!(v %in% c("Familiar.Fin.Concept", "Father.Ed", "Home.Devices"))) {
-    tall_us[[v]] <- as.factor(tall_us[[v]])
-  }
-}
+tall_us <- complete(weighted_pmm, action="stacked") |>
+  #cbind(data_us_small_numeric |> select(starts_with("W_FSTURWT"))) |>
+  pivot_longer(PV1FLIT:PV10FLIT, values_to="plausible_FLIT") |>
+  mutate(imp = unlist(lapply(1:(10*n_imp), function(x)rep(x, nrow(data_us_small_numeric))))) |>
+  convert_bg_vars_factor()
 
 tall_us <- split(tall_us, tall_us$imp)
-
+library(intsvy)
 fit_tall_us <- lapply(tall_us, function(x){
-  svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
-           Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
-         design=svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = x))
+   svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
+            Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
+          design=svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = x))
 })
 
 model <- pool(fit_tall_us)
+attempt1 <- list(imputations = weighted_pmm, fitted=fit_tall_us, pooled=model)
+save(attempt1, file="models/attempt1.rds")
 summary(model)
 
 # Attempt 2: Following Huang & Keller (2025), create a separate set of imputations for each PV, then pool everything
 # Also results in 10*n_imp models to pool, but each PV gets its own set of imputed values
 # Not sure if it's kosher to use the other PVs in the imputation model if we do things this way (Huang & Keller don't)
-data_us_by_pv <- data_us_small_numeric |>
+impute_data <- function(x, n_imp){
+  mice(x |> select(-SchoolID, -CNTSTUID, -starts_with("W_FSTURWT"), -PV), 
+       maxit=20, method="weighted.pmm", m=n_imp,
+       imputationWeights = x$W_FSTUWT)
+}
+
+library(parallel)
+library(doParallel)
+
+impute_country_with_each_pv <- function(country_data_numeric, n_imp) {
+  data_by_pv <- country_data_numeric |>
+    pivot_longer(PV1FLIT:PV10FLIT, values_to="plausible_FLIT", names_to = "PV") |>
+    split(~PV)
+  
+  cl <- makeCluster(detectCores() - 1)
+  registerDoParallel(cl)
+  clusterExport(cl, list('impute_data', 'mice', 'select', 'mice.impute.weighted.pmm'))
+  weighted_pmm_by_pv <- parLapply(cl, data_by_pv,
+                               impute_data, n_imp)
+  stopCluster(cl)
+  plot(weighted_pmm_by_pv[[1]])
+  densityplot(weighted_pmm_by_pv[[1]])
+  
+  complete_by_pv <- do.call(rbind, lapply(weighted_pmm_by_pv, function(x)complete(x, action="stacked"))) |>
+    convert_bg_vars_factor()
+  complete_by_pv$`.imp` <- unlist(lapply(1:(n_imp*10), function(x)rep(x,nrow(country_data_numeric))))
+  
+  complete_by_pv <- split(complete_by_pv, complete_by_pv$.imp)
+  
+  fit_by_pv <- lapply(complete_by_pv, function(x){
+    svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
+                                  Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
+                   design=svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = x))
+  })
+  model2 <- pool(fit_by_pv)
+  results <- list(imputations = weighted_pmm_by_pv, fitted = fit_by_pv, pooled=model2)
+  results
+}
+model_us <- impute_country_with_each_pv(data_us_small_numeric, n_imp=n_imp)
+summary(model_us$pooled)
+save(model_us, file="models/model_us.rds")
+
+data_bra_small_numeric <- dataQQQ |>
+  filter(Country=="BRA") |>
+  select(Gender, Own.Room, Books.Home, Home.Cars, Home.Computer, Siblings, 
+         Immigrant, Father.Ed, 
+         Familiar.Fin.Concept, Grade.Repeat, Home.Devices, starts_with("PV") & !ends_with("Ave"), 
+         starts_with("W_FSTU"), "SchoolID","CNTSTUID") 
+model_bra <- impute_country_with_each_pv(data_bra_small_numeric, n_imp=n_imp)
+save(model_bra, file="models/model_bra.rds")
+
+############## Impute together, fit models separately #################
+data_combined_by_pv <- rbind(data_us_small_numeric |> mutate(Country="USA"), 
+                             data_bra_small_numeric |> mutate(Country="BRA")) |>
   pivot_longer(PV1FLIT:PV10FLIT, values_to="plausible_FLIT", names_to = "PV") |>
   split(~PV)
 
-weighted_pmm_by_pv <- lapply(data_us_by_pv, 
-                             function(x){
-                               mice(x |> select(-SchoolID, -CNTSTUID, -starts_with("W_FSTURWT"), -PV), 
-                     maxit=20, method="weighted.pmm", m=n_imp,
-                     imputationWeights = x$W_FSTUWT)
-                             })
-plot(weighted_pmm_by_pv[[1]])
-densityplot(weighted_pmm_by_pv[[1]])
+cl <- makeCluster(detectCores() - 1)
+registerDoParallel(cl)
+clusterExport(cl, list('impute_data', 'mice', 'select', 'mice.impute.weighted.pmm'))
+weighted_pmm_combined_data <- parLapply(cl, data_combined_by_pv,
+                                impute_data, n_imp)
+stopCluster(cl)
+plot(weighted_pmm_combined_data[[1]])
+densityplot(weighted_pmm_combined_data[[1]])
 
-complete_by_pv <- do.call(rbind, lapply(weighted_pmm_by_pv, function(x)complete(x, action="stacked")))
-complete_by_pv$`.imp` <- unlist(lapply(1:(n_imp*10), function(x)rep(x,nrow(data_us_small_numeric))))
+complete_combined_by_pv <- do.call(rbind, lapply(weighted_pmm_combined_data, function(x)complete(x, action="stacked"))) |>
+  convert_bg_vars_factor()
+complete_combined_by_pv$`.imp` <- unlist(lapply(1:(n_imp*10), 
+                                                function(x)rep(x,nrow(rbind(data_us_small_numeric, data_bra_small_numeric)))))
 
-# Convert back to factors
-for (v in vars_bg) {
-  if(!(v %in% c("Familiar.Fin.Concept", "Father.Ed", "Home.Devices"))) {
-    complete_by_pv[[v]] <- as.factor(complete_by_pv[[v]])
-  }
-}
+complete_us_from_combined <- complete_combined_by_pv |> 
+  filter(Country=="USA")
+complete_us_from_combined <- split(complete_us_from_combined, complete_us_from_combined$`.imp`)
+complete_bra_from_combined <- complete_combined_by_pv |> 
+  filter(Country=="BRA") 
+complete_bra_from_combined <- split(complete_bra_from_combined, complete_bra_from_combined$`.imp`)
 
-complete_by_pv <- split(complete_by_pv, complete_by_pv$.imp)
-
-fit_by_pv <- lapply(complete_by_pv, function(x){
+fit_us_by_pv <- lapply(complete_us_from_combined, function(x){
   svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
-                                Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
-                 design=svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = x))
+           Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
+         design=svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = x))
 })
-model2 <- pool(fit_by_pv)
-summary(model2)
+fit_bra_by_pv <- lapply(complete_bra_from_combined, function(x){
+  svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
+           Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
+         design=svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = x))
+})
+model_us_from_combined <- pool(fit_us_by_pv)
+model_bra_from_combined <- pool(fit_bra_by_pv)
 
+combined_us <- list(imputations = weighted_pmm_combined_data, fitted = fit_us_by_pv, 
+                       pooled=model_us_from_combined)
+combined_bra <- list(imputations = weighted_pmm_combined_data, fitted = fit_bra_by_pv,  
+                    pooled = model_bra_from_combined)
+save(combined_us, combined_bra, file="models/model_us_bra.rda")
+
+####### Remove responses with no questionnaire answers whatsoever before fitting
+us_with_qqq <- data_us_small_numeric |> 
+  mutate(missing_qs = rowSums(data_us_small_numeric |> select(any_of(vars_bg)) |> is.na())) |>
+  filter(missing_qs < 9) |>
+  select(-missing_qs)
+
+model_us_2 <- impute_country_with_each_pv(us_with_qqq, n_imp=n_imp)
+save(model_us_2, file="models/model_us_qqq.rds")
+
+bra_with_qqq <- data_bra_small_numeric |> 
+  mutate(missing_qs = rowSums(data_bra_small_numeric |> select(any_of(vars_bg)) |> is.na())) |>
+  filter(missing_qs < 9) |>
+  select(-missing_qs)
+
+model_bra_2 <- impute_country_with_each_pv(bra_with_qqq, n_imp=n_imp)
+save(model_bra_2, file="models/model_bra_qqq.rds")
+
+### combined without no-questionnaire responses
+data_combined_with_qqq <- rbind(us_with_qqq |> mutate(Country="USA"), 
+                             bra_with_qqq |> mutate(Country="BRA")) |>
+  pivot_longer(PV1FLIT:PV10FLIT, values_to="plausible_FLIT", names_to = "PV") |>
+  split(~PV)
+
+cl <- makeCluster(detectCores() - 1)
+registerDoParallel(cl)
+clusterExport(cl, list('impute_data', 'mice', 'select', 'mice.impute.weighted.pmm'))
+weighted_pmm_combined_qqq <- parLapply(cl, data_combined_with_qqq,
+                                        impute_data, n_imp)
+stopCluster(cl)
+plot(weighted_pmm_combined_qqq[[1]])
+densityplot(weighted_pmm_combined_qqq[[1]])
+
+complete_combined_qqq <- do.call(rbind, lapply(weighted_pmm_combined_qqq, function(x)complete(x, action="stacked"))) |>
+  convert_bg_vars_factor()
+complete_combined_qqq$`.imp` <- unlist(lapply(1:(n_imp*10), 
+                                                function(x)rep(x,nrow(rbind(us_with_qqq, bra_with_qqq)))))
+
+complete_us_from_combined_qqq <- complete_combined_qqq |> 
+  filter(Country=="USA")
+complete_us_from_combined_qqq <- split(complete_us_from_combined_qqq, complete_us_from_combined_qqq$`.imp`)
+complete_bra_from_combined_qqq <- complete_combined_qqq |> 
+  filter(Country=="BRA") 
+complete_bra_from_combined_qqq <- split(complete_bra_from_combined_qqq, complete_bra_from_combined_qqq$`.imp`)
+
+fit_us_by_pv_qqq <- lapply(complete_us_from_combined_qqq, function(x){
+  svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
+           Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
+         design=svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = x))
+})
+fit_bra_by_pv_qqq <- lapply(complete_bra_from_combined_qqq, function(x){
+  svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
+           Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
+         design=svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = x))
+})
+model_us_from_combined_qqq <- pool(fit_us_by_pv_qqq)
+model_bra_from_combined_qqq <- pool(fit_bra_by_pv_qqq)
+
+combined_us_qqq <- list(imputations = weighted_pmm_combined_qqq, fitted = fit_us_by_pv, 
+                    pooled=model_us_from_combined)
+combined_bra_qqq <- list(imputations = weighted_pmm_combined_qqq, fitted = fit_bra_by_pv,  
+                     pooled = model_bra_from_combined)
+save(combined_us_qqq, combined_bra_qqq, file="models/model_us_bra_qqq.rda")
 #####
-# I believe this is the most correct way to analyze the data (using the replicate weights)
-# but it crashes my computer even trying to run a single time, much less on all the imputed datasets.
+# I believe using intsvy is the most correct way to analyze the data (using the replicate weights)
+# but I cannot for the life of me figure out how to pool the results using mice
+# I guess I might have to just Rubin's Rules it myself but I don't want to... T_T
 # library(intsvy)
 # us_complete <- complete(weighted_pmm, action="all")
-# fit_intsvy <- lapply(us_complete, function(d) pisa.reg.pv(paste0("PV", 1:10, "FLIT"), by=vars_bg, data=d))
+# fit_intsvy <- lapply(us_complete, function(d) {
+#   print("Fitting with intsvy....")
+#   pisa.reg.pv(paste0("PV", 1:10, "FLIT"), x=vars_bg, data=d)
+# })
 # model <- pool(fit_intsvy)
 # summary(model)
 
