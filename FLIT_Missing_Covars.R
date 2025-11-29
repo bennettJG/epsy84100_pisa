@@ -289,14 +289,23 @@ fit_bra_by_pv <- lapply(complete_bra_from_combined, function(x){
            Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
          design=svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = x))
 })
+fit_combined_by_pv <- lapply(complete_combined_by_pv |> split(complete_combined_by_pv$.imp),
+                             function(x){
+                             svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
+                                      Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
+                                    design=svydesign(ids = ~ 1, strata=~Country, weights = ~W_FSTUWT, data = x))
+})
 model_us_from_combined <- pool(fit_us_by_pv)
 model_bra_from_combined <- pool(fit_bra_by_pv)
+model_combined <- pool(fit_combined_by_pv)
 
 combined_us <- list(imputations = weighted_pmm_combined_data, fitted = fit_us_by_pv, 
-                       pooled=model_us_from_combined)
+                       pooled = model_us_from_combined)
 combined_bra <- list(imputations = weighted_pmm_combined_data, fitted = fit_bra_by_pv,  
                     pooled = model_bra_from_combined)
-save(combined_us, combined_bra, file="models/model_us_bra.rda")
+combined_us_bra <- list(imputations = weighted_pmm_combined_data, fitted = fit_combined_by_pv,
+                        pooled = model_combined)
+save(combined_us, combined_bra, combined_us_bra, file="models/model_us_bra.rda")
 
 ####### Remove responses with no questionnaire answers whatsoever before fitting
 us_with_qqq <- data_us_small_numeric |> 
@@ -352,14 +361,23 @@ fit_bra_by_pv_qqq <- lapply(complete_bra_from_combined_qqq, function(x){
            Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
          design=svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = x))
 })
+fit_combined_by_pv_qqq <- lapply(complete_combined_qqq |> split(complete_combined_qqq$.imp),
+                             function(x){
+                               svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
+                                        Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
+                                      design=svydesign(ids = ~ 1, strata=~Country, weights = ~W_FSTUWT, data = x))
+                             })
 model_us_from_combined_qqq <- pool(fit_us_by_pv_qqq)
 model_bra_from_combined_qqq <- pool(fit_bra_by_pv_qqq)
+model_combined_qqq <- pool(fit_combined_by_pv_qqq)
 
-combined_us_qqq <- list(imputations = weighted_pmm_combined_qqq, fitted = fit_us_by_pv, 
+combined_us_qqq <- list(imputations = weighted_pmm_combined_qqq, fitted = fit_us_by_pv_qqq, 
                     pooled=model_us_from_combined)
-combined_bra_qqq <- list(imputations = weighted_pmm_combined_qqq, fitted = fit_bra_by_pv,  
+combined_bra_qqq <- list(imputations = weighted_pmm_combined_qqq, fitted = fit_bra_by_pv_qqq,  
                      pooled = model_bra_from_combined)
-save(combined_us_qqq, combined_bra_qqq, file="models/model_us_bra_qqq.rda")
+combined_us_bra_qqq <- list(imputations = weighted_pmm_combined_qqq, fitted = fit_combined_by_pv_qqq,
+                        pooled = model_combined_qqq)
+save(combined_us_qqq, combined_bra_qqq, combined_us_bra_qqq, file="models/model_us_bra_qqq.rda")
 #####
 # I believe using intsvy is the most correct way to analyze the data (using the replicate weights)
 # but I cannot for the life of me figure out how to pool the results using mice
