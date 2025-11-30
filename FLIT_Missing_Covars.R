@@ -316,7 +316,7 @@ plot(default_imp)
 densityplot(default_imp)
 
 tall_us <- complete(weighted_pmm, action = "stacked") |>
-  cbind(data_us_small_numeric |> select(starts_with("W_FSTURWT"))) |>
+  #cbind(data_us_small_numeric |> select(starts_with("W_FSTURWT"))) |>
   pivot_longer(PV1FLIT:PV10FLIT, values_to = "plausible_FLIT") |>
   mutate(
     imp = unlist(lapply(1:(10 * n_imp), function(x) {
@@ -380,7 +380,7 @@ impute_country_with_each_pv <- function(
   n_iter = 20
 ) {
   data_by_pv <- country_data_numeric |>
-    cbind(country_data_numeric |> select(starts_with("W_FSTURWT"))) |>
+    #cbind(country_data_numeric |> select(starts_with("W_FSTURWT"))) |>
     pivot_longer(
       PV1FLIT:PV10FLIT,
       values_to = "plausible_FLIT",
