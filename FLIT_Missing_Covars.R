@@ -319,8 +319,8 @@ tall_us <- complete(weighted_pmm, action = "stacked") |>
   #cbind(data_us_small_numeric |> select(starts_with("W_FSTURWT"))) |>
   pivot_longer(PV1FLIT:PV10FLIT, values_to = "plausible_FLIT") |>
   mutate(
-    imp = unlist(lapply(1:(10 * n_imp), function(x) {
-      rep(x, nrow(data_us_small_numeric))
+    imp = unlist(lapply(1:n_imp, function(x) {
+      rep(10*(x-1) + (1:10), nrow(data_us_small_numeric))
     }))
   ) |>
   convert_bg_vars_factor()
@@ -377,7 +377,7 @@ impute_data <- function(x, n_imp, n_iter) {
 impute_country_with_each_pv <- function(
   country_data_numeric,
   n_imp,
-  n_iter = 20
+  n_iter = 40
 ) {
   data_by_pv <- country_data_numeric |>
     #cbind(country_data_numeric |> select(starts_with("W_FSTURWT"))) |>
