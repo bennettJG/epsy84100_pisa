@@ -767,7 +767,7 @@ impute_country_with_all_pvs <- function(
   print("Pooling...")
   model2 <- pool(fit_by_pv)
   results <- list(
-    imputations = weighted_pmm_by_pv,
+    imputations = weighted_pmm_all_pvs,
     fitted = fit_by_pv,
     pooled = model2
   )
