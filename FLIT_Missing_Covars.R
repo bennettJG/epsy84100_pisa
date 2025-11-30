@@ -320,7 +320,7 @@ tall_us <- complete(weighted_pmm, action = "stacked") |>
   pivot_longer(PV1FLIT:PV10FLIT, values_to = "plausible_FLIT") |>
   mutate(
     imp = unlist(lapply(1:n_imp, function(x) {
-      rep(10*(x-1) + (1:10), nrow(data_us_small_numeric))
+      rep(10 * (x - 1) + (1:10), nrow(data_us_small_numeric))
     }))
   ) |>
   convert_bg_vars_factor()
@@ -702,21 +702,25 @@ save(
 
 ############# Try imputing with all PVs and fitting to one
 impute_country_with_all_pvs <- function(
-    country_data_numeric,
-    n_imp,
-    n_iter = 40
+  country_data_numeric,
+  n_imp,
+  n_iter = 40
 ) {
-  data_by_pv <- country_data_numeric |>
-    #cbind(country_data_numeric |> select(starts_with("W_FSTURWT"))) |>
-    pivot_longer(
-      PV1FLIT:PV10FLIT,
-      values_to = "plausible_FLIT",
-      names_to = "PV"
-    ) |>
-    split(~PV)
-  
+  # data_by_pv <- country_data_numeric |>
+  #   #cbind(country_data_numeric |> select(starts_with("W_FSTURWT"))) |>
+  #   pivot_longer(
+  #     PV1FLIT:PV10FLIT,
+  #     values_to = "plausible_FLIT",
+  #     names_to = "PV"
+  #   ) |>
+  #   split(~PV)
+
   print("Imputing...")
-  weighted_pmm_all_pvs <- impute_data(country_data_us_numeric, 10*n_imp, n_iter)
+  weighted_pmm_all_pvs <- impute_data(
+    country_data_numeric,
+    10 * n_imp,
+    n_iter
+  )
   # plot(weighted_pmm_all_pvs)
   # densityplot(
   #   weighted_pmm_all_pvs,
@@ -730,30 +734,30 @@ impute_country_with_all_pvs <- function(
   #     Familiar.Fin.Concept +
   #     Home.Devices
   # )
-  
+
   print("Constructing complete data sets...")
-  
-  PVs_keep <- cbind(seq_len(10*n_imp*nrow(weighted_pmm_all_pvs$data)), 1:10)
+
+  PVs_keep <- cbind(seq_len(10 * n_imp * nrow(weighted_pmm_all_pvs$data)), 1:10)
   complete_by_pv <- complete(weighted_pmm_all_pvs, action = "long") |>
-    convert_bg_vars_factor() 
+    convert_bg_vars_factor()
   PVs <- complete_by_pv |> select(starts_with("PV") & ends_with("FLIT"))
-  complete_by_pv$plausible_FLIT  <- PVs[PVs_keep]
+  complete_by_pv$plausible_FLIT <- PVs[PVs_keep]
   complete_by_pv <- split(complete_by_pv, complete_by_pv$.imp)
-  
+
   print("Fitting models...")
   fit_by_pv <- lapply(complete_by_pv, function(x) {
     svyglm(
       plausible_FLIT ~
         Gender +
-        Books.Home +
-        Home.Cars +
-        Home.Computer +
-        Siblings +
-        Immigrant +
-        Father.Ed +
-        Familiar.Fin.Concept +
-        Home.Devices +
-        Grade.Repeat,
+          Books.Home +
+          Home.Cars +
+          Home.Computer +
+          Siblings +
+          Immigrant +
+          Father.Ed +
+          Familiar.Fin.Concept +
+          Home.Devices +
+          Grade.Repeat,
       design = svrepdesign(
         ids = ~1,
         weights = ~W_FSTUWT,
@@ -774,7 +778,8 @@ impute_country_with_all_pvs <- function(
   results
 }
 
-model_us_allPV <- impute_country_with_all_PVs(data_us_small_numeric)
+model_us_allPV <- impute_country_with_all_pvs(data_us_small_numeric, n_imp)
+save(model_us_allPV, "model_us_allPV.rda")
 
 ####### Remove responses with no questionnaire answers whatsoever before fitting
 us_with_qqq <- data_us_small_numeric |>
