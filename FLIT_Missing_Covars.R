@@ -47,7 +47,7 @@ qqq_keep <- c(
     paste0("PV",1:10,"MATH"),
     paste0("PV",1:10,"READ"),
     paste0("PV",1:10,"FLIT"),
-    #paste0("W_FSTURWT", 1:80),
+    paste0("W_FSTURWT", 1:80),
     "SENWT"
 )
 
@@ -78,7 +78,7 @@ new_labels <- c(
     paste0("PV",1:10,"MATH"),
     paste0("PV",1:10,"READ"),
     paste0("PV",1:10,"FLIT"),
-    #paste0("W_FSTURWT", 1:80),
+    paste0("W_FSTURWT", 1:80),
     "SENWT"
 )
 
@@ -152,7 +152,7 @@ data_us_small <- data_us_small_numeric |>
 # Need to run with more iterations and more imputations when doing this for real. But I'm just trying to get things
 # working right now
 n_imp = 5
-weighted_pmm <- mice(data_us_small_numeric |> select(-SchoolID, -CNTSTUID), 
+weighted_pmm <- mice(data_us_small_numeric |> select(-SchoolID, -CNTSTUID, starts_with("W_FSTURWT")), 
                      maxit=20, method="weighted.pmm", m=n_imp,
           imputationWeights = data_us_small_numeric$W_FSTUWT)
 plot(weighted_pmm)
@@ -169,7 +169,7 @@ plot(default_imp)
 densityplot(default_imp)
 
 tall_us <- complete(weighted_pmm, action="stacked") |>
-  #cbind(data_us_small_numeric |> select(starts_with("W_FSTURWT"))) |>
+  cbind(data_us_small_numeric |> select(starts_with("W_FSTURWT"))) |>
   pivot_longer(PV1FLIT:PV10FLIT, values_to="plausible_FLIT") |>
   mutate(imp = unlist(lapply(1:(10*n_imp), function(x)rep(x, nrow(data_us_small_numeric))))) |>
   convert_bg_vars_factor()
@@ -190,7 +190,7 @@ summary(model)
 # Also results in 10*n_imp models to pool, but each PV gets its own set of imputed values
 # Not sure if it's kosher to use the other PVs in the imputation model if we do things this way (Huang & Keller don't)
 impute_data <- function(x, n_imp, n_iter){
-  futuremice(x |> select(-SchoolID, -CNTSTUID, -starts_with("W_FSTURWT"), -PV), 
+  futuremice(x |> select(-any_of(c("SchoolID", "CNTSTUID", "PV"))), 
        maxit=n_iter, method="weighted.pmm", m=n_imp,
        imputationWeights = x$W_FSTUWT, parallelseed = 1701,
        packages=c('miceadds', 'dplyr'))
@@ -198,6 +198,7 @@ impute_data <- function(x, n_imp, n_iter){
 
 impute_country_with_each_pv <- function(country_data_numeric, n_imp, n_iter=20) {
   data_by_pv <- country_data_numeric |>
+    cbind(country_data_numeric |> select(starts_with("W_FSTURWT"))) |>
     pivot_longer(PV1FLIT:PV10FLIT, values_to="plausible_FLIT", names_to = "PV") |>
     split(~PV)
 
@@ -258,7 +259,8 @@ fit_combined_from_indiv <- lapply(combined_indiv_imputations,
                                       design=svydesign(ids = ~ 1, strata=~Country, weights = ~W_FSTUWT, data = x))
                              })
 pooled_combined_from_indiv <- pool(fit_combined_from_indiv)
-model_combined_from_indiv <- list(imputations=combined_indiv_imputations, fitted=fit_combined_from_indiv)
+model_combined_from_indiv <- list(imputations=combined_indiv_imputations, fitted=fit_combined_from_indiv,
+                                  pooled=pooled_combined_from_indiv)
 save(model_combined_from_indiv, file="models/combined_from_indiv.rda")
 
 ############## Impute together, fit models separately #################
@@ -290,18 +292,21 @@ complete_bra_from_combined <- split(complete_bra_from_combined, complete_bra_fro
 fit_us_by_pv <- lapply(complete_us_from_combined, function(x){
   svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
            Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
-         design=svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = x))
+         design=svrepdesign(ids=~1, weights= ~W_FSTUWT, repweights = "W_FSTURWT[0-9]+",
+                            type = "BRR", data = x, combined.weights = TRUE))
 })
 fit_bra_by_pv <- lapply(complete_bra_from_combined, function(x){
   svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
            Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
-         design=svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = x))
+         design=svrepdesign(ids=~1, weights= ~W_FSTUWT, repweights = "W_FSTURWT[0-9]+", 
+                            type = "BRR", data = x, combined.weights = TRUE))
 })
 fit_combined_by_pv <- lapply(complete_combined_by_pv |> split(complete_combined_by_pv$.imp),
                              function(x){
                              svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
                                       Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
-                                    design=svydesign(ids = ~ 1, strata=~Country, weights = ~W_FSTUWT, data = x))
+                                    design=svrepdesign(ids=~1, weights= ~W_FSTUWT, repweights = "W_FSTURWT[0-9]+", 
+                                                       type = "BRR", data = x, combined.weights = TRUE))
 })
 model_us_from_combined <- pool(fit_us_by_pv)
 model_bra_from_combined <- pool(fit_bra_by_pv)
@@ -362,18 +367,21 @@ complete_bra_from_combined_qqq <- split(complete_bra_from_combined_qqq, complete
 fit_us_by_pv_qqq <- lapply(complete_us_from_combined_qqq, function(x){
   svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
            Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
-         design=svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = x))
+         design=svrepdesign(ids=~1, weights= ~W_FSTUWT, repweights = "W_FSTURWT[0-9]+", 
+                            type = "BRR", data = x, combined.weights = TRUE))
 })
 fit_bra_by_pv_qqq <- lapply(complete_bra_from_combined_qqq, function(x){
   svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
            Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
-         design=svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = x))
+         design=svrepdesign(ids=~1, weights= ~W_FSTUWT, repweights = "W_FSTURWT[0-9]+", 
+                            type = "BRR", data = x, combined.weights = TRUE))
 })
 fit_combined_by_pv_qqq <- lapply(complete_combined_qqq |> split(complete_combined_qqq$.imp),
                              function(x){
                                svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
                                         Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
-                                      design=svydesign(ids = ~ 1, strata=~Country, weights = ~W_FSTUWT, data = x))
+                                      design=svrepdesign(ids=~1, weights= ~W_FSTUWT, repweights = "W_FSTURWT[0-9]+", 
+                                                         type = "BRR", data = x, combined.weights = TRUE))
                              })
 model_us_from_combined_qqq <- pool(fit_us_by_pv_qqq)
 model_bra_from_combined_qqq <- pool(fit_bra_by_pv_qqq)
@@ -407,15 +415,18 @@ tall_us_noimpute <- split(tall_us_noimpute, tall_us_noimpute$name)
 fit_us_noimpute <- lapply(tall_us_noimpute, function(x){
   svyglm(plausible_FLIT~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
            Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
-         design=svydesign(ids = ~ 1, weights = ~W_FSTUWT, data = x))
+         design=svrepdesign(ids=~1, weights= ~W_FSTUWT, repweights = "W_FSTURWT[0-9]+", 
+                            type = "BRR", data = x, combined.weights = TRUE))
 })
 
 model_us_noimpute <- pool(fit_us_noimpute)
+us_noimpute <- list(fitted = fit_us_noimpute, pooled = model_us_noimpute)
+save(us_noimpute, file="models/us_noimpute.rda")
 
 model_us_ignorePV <- svyglm(FLIT_Ave~Gender+Books.Home+Home.Cars+Home.Computer+Siblings+
                               Immigrant+Father.Ed+Familiar.Fin.Concept+Home.Devices+Grade.Repeat, 
-                            design=svydesign(
-                              ids = ~ 1, weights = ~W_FSTUWT,
+                            design=svrepdesign(ids=~1, weights= ~W_FSTUWT, repweights = "W_FSTURWT[0-9]+", 
+                                               type = "BRR", combined.weights = TRUE,
                               data = data_us_small_numeric |> 
                                 convert_bg_vars_factor() |>
                                 mutate(FLIT_Ave = rowMeans(across(starts_with("PV") & ends_with("FLIT")), 
