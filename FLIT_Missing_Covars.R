@@ -779,7 +779,7 @@ impute_country_with_all_pvs <- function(
 }
 
 model_us_allPV <- impute_country_with_all_pvs(data_us_small_numeric, n_imp)
-save(model_us_allPV, "model_us_allPV.rda")
+save(model_us_allPV, file = "models/model_us_allPV.rda")
 
 ####### Remove responses with no questionnaire answers whatsoever before fitting
 us_with_qqq <- data_us_small_numeric |>
@@ -823,7 +823,12 @@ data_combined_with_qqq <- rbind(
   ) |>
   split(~PV)
 
-weighted_pmm_combined_qqq <- lapply(data_combined_with_qqq, impute_data, n_imp)
+weighted_pmm_combined_qqq <- lapply(
+  data_combined_with_qqq,
+  impute_data,
+  n_imp,
+  n_iter
+)
 
 plot(weighted_pmm_combined_qqq[[1]])
 densityplot(
