@@ -4,28 +4,28 @@ library(mice)
 
 plot_coefs(
   combined_us$pooled,
-  combined_us_qqq$pooled,
+  #combined_us_qqq$pooled,
   model_us$pooled,
-  model_us_2$pooled,
+  #model_us_2$pooled,
   model.names = c(
     "USA + BRA imputed",
-    "USA + BRA imputed - questionnaire respondents only",
-    "USA imputed alone",
-    "USA imputed alone - questionnaire respondents only"
+    #"USA + BRA imputed - questionnaire respondents only",
+    "USA imputed alone"
+    #"USA imputed alone - questionnaire respondents only"
   )
 ) +
   labs(title = "US financial literacy model coefficients")
 
 plot_coefs(
   combined_bra$pooled,
-  combined_bra_qqq$pooled,
+  #combined_bra_qqq$pooled,
   model_bra$pooled,
-  model_bra_2$pooled,
+  #model_bra_2$pooled,
   model.names = c(
     "USA + BRA imputed",
-    "USA + BRA imputed - questionnaire respondents only",
-    "BRA imputed alone",
-    "BRA imputed alone - questionnaire respondents only"
+    #"USA + BRA imputed - questionnaire respondents only",
+    "BRA imputed alone"
+    #"BRA imputed alone - questionnaire respondents only"
   )
 ) +
   labs(title = "BRA financial literacy model coefficients")
@@ -38,6 +38,16 @@ plot_coefs(
     "USA imputed alone - separate for each PV",
     "USA imputed alone - same imputed values used with each PV",
     "USA imputed alone - all PV used for imputation,\nimputed data not reused across PVs"
+  )
+) +
+  labs(title = "US financial literacy model coefficients")
+
+plot_coefs(
+  model_us$pooled,
+  model_us_1$pooled,
+  model.names = c(
+    "USA alone - separate for each FLIT PV,\nusing all MATH + READ PVs",
+    "USA alone - one set of FLIT/MATH/READ PVs\nper imputation"
   )
 ) +
   labs(title = "US financial literacy model coefficients")
