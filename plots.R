@@ -3,29 +3,29 @@ library(jtools)
 library(mice)
 
 plot_coefs(
-  combined_us$pooled,
-  #combined_us_qqq$pooled,
+  #combined_us$pooled,
+  model_us_allsample$pooled,
   model_us$pooled,
-  #model_us_2$pooled,
+  model_allsample$pooled,
   model.names = c(
-    "USA + BRA imputed",
-    #"USA + BRA imputed - questionnaire respondents only",
-    "USA imputed alone"
-    #"USA imputed alone - questionnaire respondents only"
+    #"USA + BRA imputed",
+    "Sample of all countries used for imputation model",
+    "USA imputed alone",
+    "Regression fit to sample of all countries"
   )
 ) +
   labs(title = "US financial literacy model coefficients")
 
 plot_coefs(
-  combined_bra$pooled,
-  #combined_bra_qqq$pooled,
+  #combined_bra$pooled,
+  model_bra_allsample$pooled,
   model_bra$pooled,
-  #model_bra_2$pooled,
+  model_allsample$pooled,
   model.names = c(
-    "USA + BRA imputed",
-    #"USA + BRA imputed - questionnaire respondents only",
-    "BRA imputed alone"
-    #"BRA imputed alone - questionnaire respondents only"
+    #"USA + BRA imputed",
+    "Sample of all countries used for imputation model",
+    "BRA imputed alone",
+    "Regression fit to sample of all countries"
   )
 ) +
   labs(title = "BRA financial literacy model coefficients")
