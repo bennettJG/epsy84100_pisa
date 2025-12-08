@@ -206,6 +206,7 @@ convert_bg_vars_factor <- function(x) {
     mutate(
       `Books.Home` = factor(
         `Books.Home`,
+        levels = 1:7,
         labels = c(
           "None",
           "1-10",
@@ -221,15 +222,18 @@ convert_bg_vars_factor <- function(x) {
       `Own.Room` = factor(2 - `Own.Room`, labels = c("No", "Yes")),
       `Home.Cars` = factor(
         `Home.Cars`,
+        levels = 1:4,
         labels = c("None", "One", "Two", "3 or more")
       ),
       `Home.Computer` = factor(2 - `Home.Computer`, labels = c("No", "Yes")),
       Siblings = factor(
         Siblings,
+        levels = 1:4,
         labels = c("None", "One", "Two", "3 or more")
       ),
       Immigrant = factor(
         Immigrant,
+        levels = 1:3,
         labels = c("Non-immigrant", "Second-gen", "First-gen")
       ),
       `Grade.Repeat` = factor(
@@ -239,6 +243,7 @@ convert_bg_vars_factor <- function(x) {
       ),
       `Home.Devices` = factor(
         `Home.Devices`,
+        levels = 1:8,
         labels = c(
           "None",
           "One",
@@ -390,19 +395,19 @@ impute_country_with_each_pv <- function(
 
   print("Imputing...")
   weighted_pmm_by_pv <- lapply(data_by_pv, impute_data, n_imp, n_iter)
-  plot(weighted_pmm_by_pv[[1]])
-  densityplot(
-    weighted_pmm_by_pv[[1]],
-    data = ~ Books.Home +
-      Home.Cars +
-      Home.Computer +
-      Siblings +
-      Immigrant +
-      Father.Ed +
-      Grade.Repeat +
-      Familiar.Fin.Concept +
-      Home.Devices
-  )
+  # plot(weighted_pmm_by_pv[[1]])
+  # densityplot(
+  #   weighted_pmm_by_pv[[1]],
+  #   data = ~ Books.Home +
+  #     Home.Cars +
+  #     Home.Computer +
+  #     Siblings +
+  #     Immigrant +
+  #     Father.Ed +
+  #     Grade.Repeat +
+  #     Familiar.Fin.Concept +
+  #     Home.Devices
+  # )
 
   print("Constructing complete data sets...")
   complete_by_pv <- do.call(
@@ -803,7 +808,8 @@ data_sample_small <- slice_sample(dataQQQ, by = "Country", prop = 0.1) |>
     starts_with("PV") & !ends_with("Ave"),
     starts_with("W_FSTUWT"),
     "SchoolID",
-    "CNTSTUID"
+    "CNTSTUID",
+    "Country"
   )
 
 allcountry_sample_by_pv <- data_sample_small |>
@@ -815,7 +821,12 @@ allcountry_sample_by_pv <- data_sample_small |>
   split(~PV)
 
 print("Imputing based on sample of all countries...")
-allcountry_pmm_by_pv <- lapply(data_by_pv, impute_data, n_imp, n_iter)
+allcountry_pmm_by_pv <- lapply(
+  allcountry_sample_by_pv,
+  impute_data,
+  n_imp,
+  n_iter
+)
 plot(allcountry_pmm_by_pv[[1]])
 densityplot(
   allcountry_pmm_by_pv[[1]],
@@ -905,9 +916,9 @@ save(model_us_allsample, file = "models/no_repwt/model_us_allsample.rda")
 
 model_bra_allsample <- country_fromsample_by_pv(
   allcountry_pmm_by_pv,
-  data_us_small_numeric
+  data_bra_small_numeric
 )
-save(model_bra_allsample, file = "models/no_repwt/model_us_allsample.rda")
+save(model_bra_allsample, file = "models/no_repwt/model_bra_allsample.rda")
 
 complete_allsample_by_pv <- do.call(
   rbind,

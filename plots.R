@@ -88,4 +88,37 @@ plot_coefs(
 ) +
   labs(title = "Combined financial literacy model coefficients")
 
-#flextable(combined_us$pooled)
+for (c in unlist(data_sample_small_c |> distinct(Country))) {
+  country_alone <- readRDS(paste0("models/fromsamp/", c, "_small_alone.rds"))
+  country_fromsample <- readRDS(paste0(
+    "models/fromsamp/",
+    c,
+    "_small_allsample.rds"
+  ))
+  png(
+    paste0("figures/from_sample/", c, "_vs_allcountry.png"),
+    width = 5.5,
+    height = 8,
+    units = "in",
+    res = 300
+  )
+  p <- plot_coefs(
+    country_fromsample$pooled,
+    country_alone$pooled,
+    model_allsample$pooled,
+    model.names = c(
+      "Sample of all countries used for imputation model",
+      paste(c, "imputed alone"),
+      "Regression fit to sample of all countries"
+    )
+  ) +
+    guides(color = guide_legend(nrow = 2, byrow = T)) +
+    theme(
+      legend.position = "bottom",
+      legend.location = "plot",
+      legend.key.spacing.y = unit(0, "pt"),
+      legend.text = element_text(lineheight = 0.5, margin = margin(0))
+    )
+  print(p)
+  dev.off()
+}
