@@ -1037,6 +1037,8 @@ model_us_ignorePV <- svyglm(
       )
   )
 )
+save(model_us_ignorePV, file = "models/us_ignorePV.rda")
+
 #### Code from Horacio for data exploration
 
 mod1 <- lm(

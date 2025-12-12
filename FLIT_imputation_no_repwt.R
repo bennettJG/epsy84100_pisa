@@ -789,7 +789,7 @@ impute_country_with_all_pvs <- function(
 model_us_allPV <- impute_country_with_all_pvs(data_us_small_numeric, n_imp)
 save(model_us_allPV, file = "models/no_repwt/model_us_allPV.rda")
 
-######## TODO Sample from each country
+######## Sample from each country
 data_sample_small <- slice_sample(dataQQQ, by = "Country", prop = 0.1) |>
   select(
     Gender,
@@ -1113,3 +1113,4 @@ model_us_ignorePV <- svyglm(
       )
   )
 )
+save(model_us_ignorePV, file = "models/no_repwt/us_ignorePV.rda")

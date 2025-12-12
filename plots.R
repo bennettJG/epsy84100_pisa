@@ -54,8 +54,8 @@ plot_coefs(
 
 plot_coefs(
   model_us$pooled,
-  combined_us_bra$pooled,
-  model_us_noimpute,
+  us_noimpute$pooled,
+  model_us_ignorePV,
   model.names = c(
     "USA imputed alone",
     "No covariates imputed (but PV pooled)",

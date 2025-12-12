@@ -1,0 +1,159 @@
+---
+title: "Impact of Imputation Strategies on Regression Coefficient Estimates"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning=F, message=F)
+library(modelsummary)
+library(tidyverse)
+library(mice)
+library(flextable)
+library(knitr)
+library(survey)
+
+set_flextable_defaults(table.layout='autofit')
+```
+
+# Sample vs. full data for USA (plot 10pct_vs_all)
+
+```{r}
+load("models/no_repwt/model_us.rda")
+USA_small_alone <- readRDS("models/fromsamp/USA_small_alone.rds")
+modelsummary(list("USA imputed alone" = model_us$pooled, 
+                  "USA imputed alone -\n10% sample of data" = USA_small_alone$pooled
+),
+estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
+statistic = NULL,
+gof_omit = 'Num.Imp.',
+output="flextable")
+```
+
+# USA & BRA imputation separately vs together (both_countries_separatevstogether.png)
+
+```{r}
+load("models/no_repwt/model_us_bra.rda")
+load("models/no_repwt/combined_from_indiv.rda")
+modelsummary(list("Both countries imputed together" = combined_us_bra$pooled, 
+              "Countries imputed separately,\nmodel fit together" = model_combined_from_indiv$pooled
+            ),
+         estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
+statistic = NULL,
+gof_omit = 'Num.Imp.',
+output="flextable") |>
+    set_caption("Data from USA + BRA imputed together vs. separately (model fit to combined dataset)")
+```
+
+Note: Since this model includes data from two countries, the most correct approach would be to use a hierarchical linear model.
+
+# BRA imputation separately vs with US (bra_alone_together.png)
+
+```{r}
+load("models/no_repwt/model_bra.rda")
+modelsummary(list("BRA imputed alone" = model_bra$pooled, 
+              "Countries imputed together,\nmodel fit to BRA" = combined_bra$pooled
+            ),
+         estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
+statistic = NULL,
+gof_omit = 'Num.Imp.',
+output="flextable") |>
+    set_caption("BRA imputed with USA vs. separately (model fit to BRA data)")
+```
+
+# BRA imputation separately vs using sample of all countries (bra_vs_allcountry.png)
+
+```{r}
+load("models/no_repwt/model_bra_allsample.rda")
+modelsummary(list("BRA imputed alone" = model_bra$pooled, 
+              "Countries imputed together,\nmodel fit to BRA" = model_bra_allsample$pooled
+            ),
+        estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
+statistic = NULL,
+gof_omit = 'Num.Imp.',
+output="flextable") |>
+    set_caption("BRA imputed alone vs. based on sample of all countries (model fit to BRA data)")
+```
+
+# USA imputation separately vs with BRA (us_alone_together.png)
+
+```{r}
+modelsummary(list("USA imputed alone" = model_us$pooled, 
+              "Countries imputed together,\nmodel fit to USA" = combined_us$pooled
+            ),
+estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
+statistic = NULL,
+gof_omit = 'Num.Imp.',
+output="flextable") |>
+    set_caption("USA imputed with BRA vs. separately (model fit to USA data)")
+```
+
+# USA imputation separately vs using sample of all countries (us_vs_allcountry.png)
+
+```{r}
+load("models/no_repwt/model_us_allsample.rda")
+modelsummary(list("USA imputed alone" = model_us$pooled, 
+              "Countries imputed together,\nmodel fit to USA" = model_us_allsample$pooled
+            ),
+estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
+statistic = NULL,
+gof_omit = 'Num.Imp.',
+output="flextable") |>
+    set_caption("USA imputed alone vs. based on sample of all countries (model fit to USA data)")
+```
+
+# Impact of imputation (plot us_impute_vs_noimpute.png)
+
+Using the *full* set of USA data (3206 observations)
+
+```{r}
+load("models/no_repwt/us_noimpute.rda")
+load("models/no_repwt/us_ignorePV.rda")
+modelsummary(list("USA imputed alone" = model_us$pooled, 
+              "No covariates imputed\n(but PV pooled)" = us_noimpute$pooled,
+            "No imputation\n(PVs averaged)" = model_us_ignorePV
+            ),
+estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
+statistic = NULL,
+gof_omit = 'Num.Imp.',
+output="flextable") |>
+    set_caption("Impact of imputation, data from USA")
+```
+
+# Strategy for imputation -- handling of FLIT PVs
+
+```{r}
+load("models/no_repwt/attempt1.rda")
+load("models/no_repwt/model_us_allPV.rda")
+modelsummary(list("USA imputed alone -\nseparate for each PV" = model_us$pooled, 
+              "USA imputed alone -\nall PVs used for imputation, same imputed values used for each PV" = attempt1$pooled,
+            "USA imputed alone -\nall PVs used for imputation,\nimputed values not reused across PVs" = model_us_ignorePV
+            ),
+estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
+statistic = NULL,
+gof_omit = 'Num.Imp.',
+output="flextable") |>
+    set_caption("Impact of imputation, data from USA")
+```
+
+# Sample-based results for all countries
+
+In both cases, the regression model was fit to the observations in the sample for the country being examined. The imputation model was based on either the full sample, or only the observations for the country examined.
+
+```{r sample-based, results='asis'}
+lapply(c("AUT", "BEL", "BRA", "BGR", "CAN", "CZE", "DNK", "HUN", "ITA", "MYS", "NLD", "PER", "POL", "PRT", "SAU", "ESP", "ARE", "USA"), function(c) {
+  country_alone <- readRDS(paste0("models/fromsamp/", c, "_small_alone.rds"))
+  country_fromsample <- readRDS(paste0(
+    "models/fromsamp/",
+    c,
+    "_small_allsample.rds"
+  ))
+  cat(modelsummary(list("Imputed alone" = country_alone$pooled, 
+              "Imputed based on\nall-country sample" = country_fromsample$pooled),
+estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
+statistic = NULL,
+gof_omit = 'Num.Imp.',
+output="flextable") |>
+    set_caption(paste("Regression coefficients for imputation alone vs. with other countries on sample data from", c)) |> knit_print())
+})
+```
