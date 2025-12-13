@@ -1052,38 +1052,87 @@ summary(model_us$pooled)
 save(model_us_1, file = "models/no_repwt/model_us_1.rda")
 
 ### No imputations
-tall_us_noimpute <- data_us_small_numeric |>
-  pivot_longer(PV1FLIT:PV10FLIT, values_to = "plausible_FLIT") |>
-  convert_bg_vars_factor()
-tall_us_noimpute <- split(tall_us_noimpute, tall_us_noimpute$name)
+use_pvs_noimpute <- function(country_data) {
+  tall_noimpute <- country_data |>
+    pivot_longer(
+      starts_with("PV") & ends_with("FLIT"),
+      values_to = "plausible_FLIT"
+    ) |>
+    convert_bg_vars_factor() |>
+    select(c(
+      "Gender",
+      "Books.Home",
+      "Home.Cars",
+      "Home.Computer",
+      "Siblings",
+      "Immigrant",
+      "Father.Ed",
+      "Familiar.Fin.Concept",
+      "Home.Devices",
+      "Grade.Repeat",
+      "W_FSTUWT",
+      "name",
+      "plausible_FLIT"
+    )) |>
+    na.omit()
+  tall_noimpute <- split(tall_noimpute, tall_noimpute$name)
 
-fit_us_noimpute <- lapply(tall_us_noimpute, function(x) {
-  svyglm(
-    plausible_FLIT ~
-      Gender +
-        Books.Home +
-        Home.Cars +
-        Home.Computer +
-        Siblings +
-        Immigrant +
-        Father.Ed +
-        Familiar.Fin.Concept +
-        Home.Devices +
-        Grade.Repeat,
-    design = svydesign(
-      ids = ~1,
-      weights = ~W_FSTUWT,
-      #  repweights = "W_FSTURWT[0-9]+",
-      #  type = "BRR",
-      data = x,
-      #  combined.weights = TRUE
+  fit_noimpute <- lapply(tall_noimpute, function(x) {
+    ok_vars <- lapply(
+      c(
+        "Gender",
+        "Books.Home",
+        "Home.Cars",
+        "Home.Computer",
+        "Siblings",
+        "Immigrant",
+        "Father.Ed",
+        "Familiar.Fin.Concept",
+        "Home.Devices",
+        "Grade.Repeat"
+      ),
+      function(y) ifelse(n_distinct(x[, y]) > 1, y, NA)
+    ) |>
+      unlist() |>
+      na.omit()
+    svyglm(
+      as.formula(paste0("plausible_FLIT~", paste0(ok_vars, collapse = "+"))),
+      # plausible_FLIT ~
+      #   Gender +
+      #     Books.Home +
+      #     Home.Cars +
+      #     Home.Computer +
+      #     Siblings +
+      #     Immigrant +
+      #     Father.Ed +
+      #     Familiar.Fin.Concept +
+      #     Home.Devices +
+      #     Grade.Repeat,
+      design = svydesign(
+        ids = ~1,
+        weights = ~W_FSTUWT,
+        #  repweights = "W_FSTURWT[0-9]+",
+        #  type = "BRR",
+        data = x |>
+          mutate(id = row_number()),
+        rescale = T
+        #  combined.weights = TRUE
+      )
     )
-  )
-})
+  })
 
-model_us_noimpute <- pool(fit_us_noimpute)
-us_noimpute <- list(fitted = fit_us_noimpute, pooled = model_us_noimpute)
-save(us_noimpute, file = "models/no_repwt/us_noimpute.rda")
+  model_noimpute <- pool(fit_noimpute)
+  list(fitted = fit_noimpute, pooled = model_noimpute)
+}
+us_noimpute <- use_pvs_noimpute(data_us_small_numeric)
+save(us_noimpute, file = "models/no_repwt/noimpute/us_noimpute.rda")
+bra_noimpute <- use_pvs_noimpute(data_bra_small_numeric)
+save(bra_noimpute, file = "models/no_repwt/noimpute/bra_noimpute.rda")
+us_bra_noimpute <- use_pvs_noimpute(rbind(
+  data_us_small_numeric,
+  data_bra_small_numeric
+))
+save(us_bra_noimpute, file = "models/no_repwt/noimpute/us_bra_noimpute.rda")
 
 model_us_ignorePV <- svyglm(
   FLIT_Ave ~

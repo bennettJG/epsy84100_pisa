@@ -13,16 +13,18 @@ library(flextable)
 library(knitr)
 library(survey)
 
-set_flextable_defaults(table.layout='autofit')
+set_flextable_defaults(table.layout='autofit', font.size=10)
 ```
 
 # Sample vs. full data for USA (plot 10pct_vs_all)
 
 ```{r}
 load("models/no_repwt/model_us.rda")
+load("models/no_repwt/noimpute/us_noimpute.rda")
 USA_small_alone <- readRDS("models/fromsamp/USA_small_alone.rds")
 modelsummary(list("USA imputed alone" = model_us$pooled, 
-                  "USA imputed alone -\n10% sample of data" = USA_small_alone$pooled
+                  "USA imputed alone -\n10% sample of data" = USA_small_alone$pooled,
+                  "USA not imputed (but PVs used)" = us_noimpute$pooled
 ),
 estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
 statistic = NULL,
@@ -35,8 +37,10 @@ output="flextable")
 ```{r}
 load("models/no_repwt/model_us_bra.rda")
 load("models/no_repwt/combined_from_indiv.rda")
+load("models/no_repwt/noimpute/us_bra_noimpute.rda")
 modelsummary(list("Both countries imputed together" = combined_us_bra$pooled, 
-              "Countries imputed separately,\nmodel fit together" = model_combined_from_indiv$pooled
+              "Countries imputed separately,\nmodel fit together" = model_combined_from_indiv$pooled,
+              "Model fit together, no imputation" = us_bra_noimpute$pooled
             ),
          estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
 statistic = NULL,
@@ -51,8 +55,10 @@ Note: Since this model includes data from two countries, the most correct approa
 
 ```{r}
 load("models/no_repwt/model_bra.rda")
+load("models/no_repwt/noimpute/bra_noimpute.rda")
 modelsummary(list("BRA imputed alone" = model_bra$pooled, 
-              "Countries imputed together,\nmodel fit to BRA" = combined_bra$pooled
+              "Countries imputed together,\nmodel fit to BRA" = combined_bra$pooled,
+              "BRA not imputed (but PVs used)" = bra_noimpute$pooled
             ),
          estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
 statistic = NULL,
@@ -66,7 +72,8 @@ output="flextable") |>
 ```{r}
 load("models/no_repwt/model_bra_allsample.rda")
 modelsummary(list("BRA imputed alone" = model_bra$pooled, 
-              "Countries imputed together,\nmodel fit to BRA" = model_bra_allsample$pooled
+              "Countries imputed together,\nmodel fit to BRA" = model_bra_allsample$pooled,
+              "BRA not imputed (but PVs used)" = bra_noimpute$pooled
             ),
         estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
 statistic = NULL,
@@ -79,7 +86,8 @@ output="flextable") |>
 
 ```{r}
 modelsummary(list("USA imputed alone" = model_us$pooled, 
-              "Countries imputed together,\nmodel fit to USA" = combined_us$pooled
+              "Countries imputed together,\nmodel fit to USA" = combined_us$pooled,
+              "USA not imputed (but PVs used)" = us_noimpute$pooled
             ),
 estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
 statistic = NULL,
@@ -93,7 +101,8 @@ output="flextable") |>
 ```{r}
 load("models/no_repwt/model_us_allsample.rda")
 modelsummary(list("USA imputed alone" = model_us$pooled, 
-              "Countries imputed together,\nmodel fit to USA" = model_us_allsample$pooled
+              "Countries imputed together,\nmodel fit to USA" = model_us_allsample$pooled,
+              "USA not imputed (but PVs used)" = us_noimpute$pooled
             ),
 estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
 statistic = NULL,
@@ -107,7 +116,6 @@ output="flextable") |>
 Using the *full* set of USA data (3206 observations)
 
 ```{r}
-load("models/no_repwt/us_noimpute.rda")
 load("models/no_repwt/us_ignorePV.rda")
 modelsummary(list("USA imputed alone" = model_us$pooled, 
               "No covariates imputed\n(but PV pooled)" = us_noimpute$pooled,
@@ -115,7 +123,7 @@ modelsummary(list("USA imputed alone" = model_us$pooled,
             ),
 estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
 statistic = NULL,
-gof_omit = 'Num.Imp.',
+gof_omit = 'Num.Imp.|R2|AIC|BIC|Log.Lik.|RMSE|R2 Adj.',
 output="flextable") |>
     set_caption("Impact of imputation, data from USA")
 ```
@@ -131,7 +139,7 @@ modelsummary(list("USA imputed alone -\nseparate for each PV" = model_us$pooled,
             ),
 estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
 statistic = NULL,
-gof_omit = 'Num.Imp.',
+gof_omit = 'Num.Imp.|R2|AIC|BIC|Log.Lik.|RMSE|R2 Adj.',
 output="flextable") |>
     set_caption("Impact of imputation, data from USA")
 ```
@@ -148,12 +156,19 @@ lapply(c("AUT", "BEL", "BRA", "BGR", "CAN", "CZE", "DNK", "HUN", "ITA", "MYS", "
     c,
     "_small_allsample.rds"
   ))
+  country_noimpute <- readRDS(paste0(
+    "models/fromsamp/",
+    c,
+    "_noimpute.rds"
+  ))
   cat(modelsummary(list("Imputed alone" = country_alone$pooled, 
-              "Imputed based on\nall-country sample" = country_fromsample$pooled),
+              "Imputed based on\nall-country sample" = country_fromsample$pooled,
+              "Not imputed (but PVs used)" = country_noimpute$pooled),
 estimate  = "{estimate}\n[{conf.low}, {conf.high}]",
 statistic = NULL,
 gof_omit = 'Num.Imp.',
 output="flextable") |>
     set_caption(paste("Regression coefficients for imputation alone vs. with other countries on sample data from", c)) |> knit_print())
+  cat("\n")
 })
 ```

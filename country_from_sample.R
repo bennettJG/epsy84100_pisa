@@ -1,3 +1,6 @@
+# Don't re-run this every time, since there's no way to set seed for
+# replicability
+# Instead, use code below to recreate the original df from the saved mids object
 data_sample_small_c <- slice_sample(dataQQQ, by = "Country", prop = 0.1) |>
   select(
     Gender,
@@ -53,6 +56,16 @@ save(
   allcountry_pmm_by_pv_c,
   file = "models/no_repwt/allcountry_sample_mids_c.rda"
 )
+
+### Load saved data
+load("~/PISA data/epsy84100_pisa/models/no_repwt/allcountry_sample_mids_c.rda")
+data_sample_small_c <- do.call(
+  rbind,
+  lapply(allcountry_pmm_by_pv_c, function(x) x$data)
+) |>
+  rownames_to_column() |>
+  mutate(rowname = str_replace(rowname, "\\.[0-9]*", "")) |>
+  pivot_wider(names_from = rowname, values_from = plausible_FLIT)
 
 library(parallelly)
 library(parallel)
@@ -145,5 +158,15 @@ for (c in unlist(data_sample_small_c |> distinct(Country))) {
   saveRDS(
     model_country_alone,
     file = paste0("models/fromsamp/", c, "_small_alone.rds")
+  )
+}
+
+for (c in unlist(data_sample_small_c |> distinct(Country))) {
+  model_noimpute <- use_pvs_noimpute(
+    data_sample_small_c |> filter(Country == c)
+  )
+  saveRDS(
+    model_noimpute,
+    file = paste0("models/fromsamp/", c, "_noimpute.rds")
   )
 }
