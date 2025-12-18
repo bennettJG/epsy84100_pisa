@@ -216,7 +216,12 @@ for (c in unlist(data_sample_small_c |> distinct(Country))) {
     rownames_to_column(var = "var") |>
     left_join(summ, by = "var") |>
     mutate(
-      sd = sqrt(n_listwise) *
+      sd = sqrt(nrow(
+        data_sample_small_c |>
+          filter(Country == c) |>
+          select(all_of(vars_bg)) |>
+          na.omit()
+      )) *
         std.error,
       sd_imputed = sqrt(n_total) * se_imputed
     )
@@ -241,6 +246,34 @@ ggplot(
     "Difference between imputed and\nnon-imputed coefficients\n(SD of imputed value)"
   ) +
   scale_y_continuous("% missingness on variable", labels = scales::percent) +
+  #scale_color_brewer(palette = "Dark2") +
+  scale_shape_manual(values = c(0:2, 5:6, 0:2, 5:6)) +
+  theme_bw() +
+  geom_smooth(
+    method = lm,
+    aes(shape = NULL, color = NULL),
+    linewidth = 0.5,
+    se = F
+  ) +
+  theme(legend.position = "bottom", legend.title = element_blank())
+
+ggplot(
+  missing_pointestimates,
+  aes(
+    y = 1 - n_listwise / n_total,
+    x = abs(est_alone - est_noimpute) / sd_imputed,
+    color = var,
+    shape = var
+  )
+) +
+  geom_point() +
+  scale_x_continuous(
+    "Difference between imputed and\nnon-imputed coefficients\n(SD of imputed value)"
+  ) +
+  scale_y_continuous(
+    "% obs. removed under listwise deletion",
+    labels = scales::percent
+  ) +
   #scale_color_brewer(palette = "Dark2") +
   scale_shape_manual(values = c(0:2, 5:6, 0:2, 5:6)) +
   theme_bw() +
