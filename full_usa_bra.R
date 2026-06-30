@@ -37,7 +37,7 @@ model_bra <- impute_country_with_each_pv(
   n_imp = n_imp,
   n_iter = n_iter
 )
-timings[timings$country == "USA", "end_time"] <- Sys.time()
+timings[timings$country == "BRA", "end_time"] <- Sys.time()
 save(model_bra, file = "models/no_repwt/model_bra.rda")
 save(timings, file = "timings.rda")
 
