@@ -14,36 +14,42 @@ data_bra_small <- data_bra_small_numeric |>
   convert_bg_vars_factor()
 
 timings <- data.frame(
-  country = character(),
-  start_time = POSIXct(),
-  end_time = POSIXct()
+  country = c(""),
+  start_time = c(proc.time()["elapsed"]),
+  end_time = c(proc.time()["elapsed"])
 )
 timings <- timings |>
-  add_row(country = "USA", start_time = Sys.time(), end_time = NA)
+  add_row(
+    country = "USA",
+    start_time = proc.time()["elapsed"],
+    end_time = NA
+  ) |>
+  filter(country != "")
 
 model_us <- impute_country_with_each_pv(
   data_us_small_numeric,
   n_imp = n_imp,
   n_iter = n_iter
 )
-timings[timings$country == "USA", "end_time"] <- Sys.time()
+timings[timings$country == "USA", "end_time"] <- proc.time()["elapsed"]
 save(model_us, file = "models/no_repwt/model_us.rda")
 save(timings, file = "timings.rda")
 
 timings <- timings |>
-  add_row(country = "BRA", start_time = Sys.time(), end_time = NA)
+  add_row(country = "BRA", start_time = proc.time()["elapsed"], end_time = NA)
 model_bra <- impute_country_with_each_pv(
   data_bra_small_numeric,
   n_imp = n_imp,
   n_iter = n_iter
 )
-timings[timings$country == "USA", "end_time"] <- Sys.time()
+
+timings[timings$country == "BRA", "end_time"] <- proc.time()["elapsed"]
 save(model_bra, file = "models/no_repwt/model_bra.rda")
 save(timings, file = "timings.rda")
 
 print(
   timings |>
-    mutate(Minutes = interval(end_time, start_time) %/% minutes(1)) |>
+    mutate(Minutes = (end_time - start_time) / 60) |>
     select(country, Minutes)
 )
 
@@ -121,6 +127,7 @@ save(
 
 
 ############## Impute together, fit models separately #################
+
 data_combined_by_pv <- rbind(
   data_us_small_numeric |> mutate(Country = "USA"),
   data_bra_small_numeric |> mutate(Country = "BRA")
@@ -132,11 +139,25 @@ data_combined_by_pv <- rbind(
   ) |>
   split(~PV)
 
+timings <- timings |>
+  add_row(
+    country = "USA+BRA",
+    start_time = proc.time()["elapsed"],
+    end_time = NA
+  )
 weighted_pmm_combined_data <- lapply(
   data_combined_by_pv,
   impute_data,
   n_imp,
   n_iter
+)
+
+timings[timings$country == "USA+BRA", "end_time"] <- proc.time()["elapsed"]
+save(timings, file = "timings.rda")
+print(
+  timings |>
+    mutate(Minutes = (end_time - start_time) / 60) |>
+    select(country, Minutes)
 )
 
 plot(weighted_pmm_combined_data[[1]])
